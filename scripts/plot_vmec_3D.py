@@ -104,4 +104,5 @@ ax.set_zlim(mid_z - max_range, mid_z + max_range)
 
 # plt.figtext(0.5,0.999,'Color = |B|',horizontalalignment='center',verticalalignment='top',fontsize=10)
 
+
 plt.show()
