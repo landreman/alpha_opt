@@ -352,7 +352,7 @@ class SurfaceGarabedian01(Surface):
             ), f"Expected {dof_names_should_be}, got {self.surface_garabedian.local_dof_names}"
             x_scale = np.exp(
                 -exponential_spectral_scaling_alpha * np.sqrt((ms - 1) ** 2 + ns**2)
-            )
+            ) / np.exp(-exponential_spectral_scaling_alpha)  # Normalize so that (m,n)=(0,1) mode has x_scale=1
         else:
             x_scale = np.ones(self.dim_x)
 
@@ -392,7 +392,6 @@ class SurfaceGarabedian01(Surface):
 
             # Now scale all the Delta(m,n) parameters to match the desired minor radius.
             scale = self._minor_radius / self.surface_garabedian.to_RZFourier().minor_radius()
-            print("Scaling all Delta(m,n) by factor", scale, " 1/scale=", 1/scale)
             self.surface_garabedian.local_full_x = self.surface_garabedian.local_full_x * scale
 
         self.surface_rz_fourier = self.surface_garabedian.to_RZFourier()

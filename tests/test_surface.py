@@ -151,7 +151,6 @@ def test_surface_Garabedian_01_dof_ranges():
 
     for mpol in [1, 2]:
         for ntor in [0, 3]:
-            print("Testing mpol=", mpol, "ntor=", ntor)
             surface = SurfaceGarabedian01(
                 nfp=nfp,
                 mpol=mpol,
@@ -166,6 +165,8 @@ def test_surface_Garabedian_01_dof_ranges():
             # (except for the major and minor radius)
             surface.x = np.ones_like(surface.x)
             surface2 = surface.to_RZFourier()
+            # Since exact_radii=False, the major and minor radius are only
+            # matched approximately.
             np.testing.assert_allclose(surface2.major_radius(), major_radius, rtol=0.05)
             np.testing.assert_allclose(surface2.minor_radius(), minor_radius, rtol=0.01)
             surface3 = SurfaceGarabedian.from_RZFourier(surface2)
@@ -185,7 +186,6 @@ def test_surface_Garabedian_01_dof_ranges():
             surface3.fix("Delta(1,0)")  # Major radius
             np.testing.assert_allclose(surface3.x, -np.ones_like(surface3.x) * minor_radius * x_max)
             factor0 = surface2.minor_radius() / minor_radius
-            print("factor1:", factor1, "factor0:", factor0)
 
             # Now try with exact_radii=True.
             surface = SurfaceGarabedian01(
@@ -200,9 +200,9 @@ def test_surface_Garabedian_01_dof_ranges():
             )
             # If dofs are 1, the Delta_m,n should be x_max * minor_radius
             # (except for the major and minor radius)
-            print("Setting surface dofs to 1")
             surface.x = np.ones_like(surface.x)
             surface2 = surface.to_RZFourier()
+            # Since exact_radii=True, the major and minor radius should be exactly correct.
             np.testing.assert_allclose(surface2.major_radius(), major_radius)
             np.testing.assert_allclose(surface2.minor_radius(), minor_radius)
             surface3 = SurfaceGarabedian.from_RZFourier(surface2)
@@ -212,7 +212,6 @@ def test_surface_Garabedian_01_dof_ranges():
 
             # If dofs are 0, the Delta_m,n should be -x_max * minor_radius
             # (except for the major and minor radius)
-            print("Setting surface dofs to 0")
             surface.x = np.zeros_like(surface.x)
             surface2 = surface.to_RZFourier()
             np.testing.assert_allclose(surface2.major_radius(), major_radius)
@@ -221,3 +220,80 @@ def test_surface_Garabedian_01_dof_ranges():
             surface3.fix("Delta(0,0)")  # Minor radius
             surface3.fix("Delta(1,0)")  # Major radius
             np.testing.assert_allclose(surface3.x, -np.ones_like(surface3.x) * minor_radius * x_max / factor0)
+
+            # Now try with exponential_spectral_scaling=True.
+            surface = SurfaceGarabedian01(
+                nfp=nfp,
+                mpol=mpol,
+                ntor=ntor,
+                major_radius=major_radius,
+                minor_radius=minor_radius,
+                exponential_spectral_scaling=True,
+                exact_radii=False,
+                x_max=x_max,
+            )
+            np.testing.assert_array_less(surface.x_scale, 1.0 + 1e-8)
+            np.testing.assert_array_less(0.0, surface.x_scale)
+            np.testing.assert_allclose(max(surface.x_scale), 1.0)
+            # If dofs are 1, the Delta_m,n should be x_max * minor_radius * x_scale
+            # (except for the major and minor radius)
+            surface.x = np.ones_like(surface.x)
+            surface2 = surface.to_RZFourier()
+            # Since exact_radii=False, the major and minor radius are only
+            # matched approximately.
+            np.testing.assert_allclose(surface2.major_radius(), major_radius, rtol=0.05)
+            np.testing.assert_allclose(surface2.minor_radius(), minor_radius, rtol=0.01)
+            surface3 = SurfaceGarabedian.from_RZFourier(surface2)
+            surface3.fix("Delta(0,0)")  # Minor radius
+            surface3.fix("Delta(1,0)")  # Major radius
+            np.testing.assert_allclose(surface3.x, np.ones_like(surface3.x) * minor_radius * x_max * surface.x_scale)
+            factor1 = surface2.minor_radius() / minor_radius
+
+            # If dofs are 0, the Delta_m,n should be -x_max * minor_radius * x_scale
+            # (except for the major and minor radius)
+            surface.x = np.zeros_like(surface.x)
+            surface2 = surface.to_RZFourier()
+            np.testing.assert_allclose(surface2.major_radius(), major_radius, rtol=0.02)
+            np.testing.assert_allclose(surface2.minor_radius(), minor_radius, rtol=0.01)
+            surface3 = SurfaceGarabedian.from_RZFourier(surface2)
+            surface3.fix("Delta(0,0)")  # Minor radius
+            surface3.fix("Delta(1,0)")  # Major radius
+            np.testing.assert_allclose(surface3.x, -np.ones_like(surface3.x) * minor_radius * x_max * surface.x_scale)
+            factor0 = surface2.minor_radius() / minor_radius
+
+            # Now try with exact_radii=True.
+            surface = SurfaceGarabedian01(
+                nfp=nfp,
+                mpol=mpol,
+                ntor=ntor,
+                major_radius=major_radius,
+                minor_radius=minor_radius,
+                exponential_spectral_scaling=True,
+                exact_radii=True,
+                x_max=x_max,
+            )
+            np.testing.assert_array_less(surface.x_scale, 1.0 + 1e-8)
+            np.testing.assert_array_less(0.0, surface.x_scale)
+            np.testing.assert_allclose(max(surface.x_scale), 1.0)
+            # If dofs are 1, the Delta_m,n should be x_max * minor_radius
+            # (except for the major and minor radius)
+            surface.x = np.ones_like(surface.x)
+            surface2 = surface.to_RZFourier()
+            # Since exact_radii=True, the major and minor radius should be exactly correct.
+            np.testing.assert_allclose(surface2.major_radius(), major_radius)
+            np.testing.assert_allclose(surface2.minor_radius(), minor_radius)
+            surface3 = SurfaceGarabedian.from_RZFourier(surface2)
+            surface3.fix("Delta(0,0)")  # Minor radius
+            surface3.fix("Delta(1,0)")  # Major radius
+            np.testing.assert_allclose(surface3.x, np.ones_like(surface3.x) * minor_radius * x_max * surface.x_scale / factor1)
+
+            # If dofs are 0, the Delta_m,n should be -x_max * minor_radius
+            # (except for the major and minor radius)
+            surface.x = np.zeros_like(surface.x)
+            surface2 = surface.to_RZFourier()
+            np.testing.assert_allclose(surface2.major_radius(), major_radius)
+            np.testing.assert_allclose(surface2.minor_radius(), minor_radius)
+            surface3 = SurfaceGarabedian.from_RZFourier(surface2)
+            surface3.fix("Delta(0,0)")  # Minor radius
+            surface3.fix("Delta(1,0)")  # Major radius
+            np.testing.assert_allclose(surface3.x, -np.ones_like(surface3.x) * minor_radius * x_max * surface.x_scale / factor0)
