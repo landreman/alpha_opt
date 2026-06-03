@@ -297,3 +297,40 @@ def test_surface_Garabedian_01_dof_ranges():
             surface3.fix("Delta(0,0)")  # Minor radius
             surface3.fix("Delta(1,0)")  # Major radius
             np.testing.assert_allclose(surface3.x, -np.ones_like(surface3.x) * minor_radius * x_max * surface.x_scale / factor0)
+
+def test_surface_Garabedian_01_with_vmec():
+    vmec = Vmec(os.path.join(DATA_DIR, "input.vmec"))
+
+    nfp = 3
+    major_radius = 2.3
+    minor_radius = 0.5
+
+    surface = SurfaceGarabedian01(
+        nfp=nfp,
+        mpol=2,
+        ntor=3,
+        major_radius=major_radius,
+        minor_radius=minor_radius,
+        exact_radii=True,
+        exponential_spectral_scaling=True,
+        x_max=0.2,
+    )
+    vmec.boundary = surface
+    vmec.indata.nfp = (
+        nfp  # Vmec++ does not automatically get nfp from the boundary surface!
+    )
+    surface.x = [0.2919483 , 0.01458784, 0.33959851, 0.67075689, 0.85201523,
+       0.40368797, 0.31449363, 0.70907725, 0.56704031, 0.21109265,
+       0.55388917, 0.07341619, 0.15555743, 0.7092611 , 0.60333879,
+       0.42050352, 0.58377448, 0.28925482, 0.98806487, 0.62794344,
+       0.12269605, 0.96256941, 0.60453468, 0.98045459, 0.64625453,
+       0.0469208 , 0.51604649, 0.39349023, 0.7395622 , 0.69558463,
+       0.6184542 , 0.31259228, 0.53705241]
+
+    vmec.run()
+    np.testing.assert_equal(vmec.wout.nfp, nfp)
+    np.testing.assert_allclose(vmec.wout.Rmajor_p, major_radius)
+    np.testing.assert_allclose(vmec.wout.Aminor_p, minor_radius)
+    print("iota:", list(float(x) for x in vmec.wout.iotaf))
+    np.testing.assert_allclose(vmec.wout.iotaf[0], 0.013200207160874146)
+    np.testing.assert_allclose(vmec.wout.iotaf[-1], 0.020488826401016888)
