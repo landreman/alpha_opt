@@ -5,7 +5,7 @@ from vmecpp.simsopt_compat import Vmec
 
 from . import DATA_DIR
 from .pca import SurfaceWeightedPCA
-from .surface import SurfaceGarabedianQuantiles
+from .surface import SurfaceGarabedianQuantiles, SurfaceGarabedian01
 from .objective import get_objective
 from .constants import ARIES_CS_MINOR_RADIUS
 
@@ -32,6 +32,8 @@ def measure_usable_space(
     nfp=4,
     aspect_ratio=6,
     min_for_each_dof=0.0,
+    x_max=1.0,
+    exponential_spectral_scaling=False,
     minutes=0.3,
     iota_threshold=0.0,
     print_every=10,
@@ -52,9 +54,10 @@ def measure_usable_space(
     Parameters
     ----------
     surface_type : str
-        Either "PCA" or "Garabedian" to choose the surface parameterization.
+        Either "PCA" or "Garabedian" or "Garabedian01" to choose the surface parameterization.
         "PCA" uses weighted PCA with weighted quantile transform.
         "Garabedian" uses Garabedian basis with weighted quantile transform.
+        "Garabedian01" uses the non-data-informed Garabedian parameterization.
     which_nfp : str
         Either "allNfp" or "nfpAtLeast3" to choose the training dataset.
     n_pca_components : int
@@ -73,6 +76,12 @@ def measure_usable_space(
     min_for_each_dof : float
         Minimum absolute value for each degree of freedom when sampling uniformly
         from [min_for_each_dof, 1 - min_for_each_dof]. Default is 0.1.
+    x_max : float
+        Used only for Garabedian01. Maximum absolute Fourier amplitude, as a
+        fraction of the minor radius.
+    exponential_spectral_scaling : bool
+        Used only for Garabedian01. If True, apply exponential spectral scaling
+        to the Fourier coefficients.
     minutes : float
         Number of minutes to run the test. Default is 0.3.
     iota_threshold : float
@@ -111,8 +120,8 @@ def measure_usable_space(
     major_radius = minor_radius * aspect_ratio
 
     # Validate inputs
-    if surface_type not in ("PCA", "Garabedian"):
-        raise ValueError(f"surface_type must be 'PCA' or 'Garabedian', got {surface_type}")
+    if surface_type not in ("PCA", "Garabedian", "Garabedian01"):
+        raise ValueError(f"surface_type must be 'PCA' or 'Garabedian' or 'Garabedian01', got {surface_type}")
     if which_nfp not in ("allNfp", "nfpAtLeast3"):
         raise ValueError(f"which_nfp must be 'allNfp' or 'nfpAtLeast3', got {which_nfp}")
 
@@ -127,11 +136,13 @@ def measure_usable_space(
             h5_filename = "20260401-01_prepare_weighted_data_allNfp_PCA.h5"
         else:  # nfpAtLeast3
             h5_filename = "20260402-01_prepare_weighted_data_nfpAtLeast3_PCA.h5"
-    else:  # Garabedian
+    elif surface_type == "Garabedian":
         if which_nfp == "allNfp":
             h5_filename = "20260401-01_prepare_weighted_data_allNfp_Garabedian.h5"
         else:  # nfpAtLeast3
             h5_filename = "20260402-01_prepare_weighted_data_nfpAtLeast3_Garabedian.h5"
+    else:
+        h5_filename = "."  # Garabedian01 does not use a data file
 
     h5_filepath = os.path.join(DATA_DIR, h5_filename)
 
@@ -151,7 +162,7 @@ def measure_usable_space(
             exact_radii=True,
         )
         n_dofs = n_pca_components
-    else:  # Garabedian
+    elif surface_type == "Garabedian":
         surface = SurfaceGarabedianQuantiles(
             nfp=nfp,
             major_radius=major_radius,
@@ -160,6 +171,18 @@ def measure_usable_space(
             ntor=mpol,
             filename=h5_filepath,
             seed=rank,
+            exact_radii=True,
+        )
+        n_dofs = len(surface.x)
+    else:  # Garabedian01
+        surface = SurfaceGarabedian01(
+            nfp=nfp,
+            major_radius=major_radius,
+            minor_radius=minor_radius,
+            mpol=mpol,
+            ntor=mpol,
+            x_max=x_max,
+            exponential_spectral_scaling=exponential_spectral_scaling,
             exact_radii=True,
         )
         n_dofs = len(surface.x)

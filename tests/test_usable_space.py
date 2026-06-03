@@ -7,6 +7,8 @@ from alpha_opt.usable_space import measure_usable_space
 @pytest.mark.parametrize(
     "surface_type,vmec_input,which_nfp",
     [
+        ("Garabedian01", "vacuum", "allNfp"),
+        # ("Garabedian01", "finite beta", "allNfp"),
         ("Garabedian", "vacuum", "allNfp"),
         ("Garabedian", "vacuum", "nfpAtLeast3"),
         ("Garabedian", "finite beta", "allNfp"),
@@ -28,6 +30,8 @@ def test_usable_space(surface_type, vmec_input, which_nfp):
             min_for_each_dof=0.1,
             n_pca_components=1,
             mpol=1,
+            x_max=0.3,
+            exponential_spectral_scaling=True,
         )
     )
     np.testing.assert_array_less(0, n_trials)
