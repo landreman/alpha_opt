@@ -276,3 +276,126 @@ class SurfaceGarabedianQuantiles(Surface):
 
     def to_RZFourier(self):
         return self.surface_rz_fourier
+
+class SurfaceGarabedian01(Surface):
+    """Similar to SurfaceGarabedian, but the dofs are scaled to lie in [0, 1]
+    without using any data.
+
+    This surface is handy for measure_usable_space as a baseline for a
+    non-data-informed parameter space with bound constraints.
+
+    if exponential_spectral_scaling is False, each Delta_{m,n} ranges between -x_max * minor_radius to x_max * minor_radius as the
+    corresponding dof ranges from 0 to 1.
+
+    if exponential_spectral_scaling is True, each Delta_{m,n} ranges between -x_max * minor_radius * x_scale to x_max
+    * minor_radius * x_scale where x_scale = exp(-exponential_spectral_scaling_alpha * sqrt((m-1)^2 + n^2)).
+    """
+
+    def __init__(
+        self,
+        nfp,
+        major_radius,
+        minor_radius,
+        mpol,
+        ntor,
+        x_max,
+        exact_radii=False,
+        exponential_spectral_scaling=True,
+        exponential_spectral_scaling_alpha=1.0,
+    ):
+        self._major_radius = major_radius
+        self._minor_radius = minor_radius
+        self.exact_radii = exact_radii
+        self.nfp = nfp
+        self.mpol = mpol
+        self.ntor = ntor
+        self.x_max = x_max
+        self.exponential_spectral_scaling = exponential_spectral_scaling
+        self.exponential_spectral_scaling_alpha = exponential_spectral_scaling_alpha
+
+        self.mmax = mpol + 1
+        self.mmin = -mpol + 1
+        self.nmax = ntor
+        self.nmin = -ntor
+
+        self.surface_garabedian = SurfaceGarabedian(
+            nfp=self.nfp,
+            mmax=self.mmax,
+            nmax=self.nmax,
+            mmin=self.mmin,
+            nmin=self.nmin,
+        )
+        self.surface_garabedian.set("Delta(1,0)", major_radius)  # Set major radius
+        self.surface_garabedian.set("Delta(0,0)", minor_radius)  # Set minor radius
+        self.surface_garabedian.fix("Delta(0,0)")  # Minor radius
+        self.surface_garabedian.fix("Delta(1,0)")  # Major radius
+        self.dim_x = len(self.surface_garabedian.x)
+
+        # Compute x_scale for the dofs.
+        if self.exponential_spectral_scaling:
+            # See ~/work24/20240415-01 Generating random stellarator boundary shapes.docx
+            # exponential_spectral_scaling_alpha = 1.0
+            ms = []
+            ns = []
+            for m in range(self.mmin, self.mmax + 1):
+                for n in range(self.nmin, self.nmax + 1):
+                    if n == 0 and m in [0, 1]:
+                        continue
+                    ms.append(m)
+                    ns.append(n)
+
+            ms = np.array(ms)
+            ns = np.array(ns)
+            dof_names_should_be = [f"Delta({m},{n})" for m, n in zip(ms, ns)]
+            assert (
+                self.surface_garabedian.local_dof_names == dof_names_should_be
+            ), f"Expected {dof_names_should_be}, got {self.surface_garabedian.local_dof_names}"
+            x_scale = np.exp(
+                -exponential_spectral_scaling_alpha * np.sqrt((ms - 1) ** 2 + ns**2)
+            )
+        else:
+            x_scale = np.ones(self.dim_x)
+
+        self.x_scale = x_scale
+
+        x0 = np.full(self.dim_x, 0.5)
+        super().__init__(x0=x0)
+
+    def recompute_bell(self, parent=None):
+        # Map from [0, 1] dofs to original Garabedian parameters
+        transformed_vals = (self.x * 2 - 1) * self.x_max * self._minor_radius * self.x_scale
+        self.surface_garabedian.x = transformed_vals
+        # Need to re-set the major and minor radius after scaling, since they
+        # may have been changed by the exact_radii enforcement in the previous iteration.
+        self.surface_garabedian.set("Delta(1,0)", self._major_radius)  # Set major radius
+        self.surface_garabedian.set("Delta(0,0)", self._minor_radius)  # Set minor radius
+
+        if self.exact_radii:
+            # First vary Delta(1,0) to enforce exact aspect ratio. This is a single degree of freedom, so we can do a 1D root solve.
+            target_aspect_ratio = self._major_radius / self._minor_radius
+
+            def aspect_residual(x):
+                self.surface_garabedian.set_Delta(1, 0, x)
+                return (
+                    self.surface_garabedian.to_RZFourier().aspect_ratio()
+                    - target_aspect_ratio
+                )
+
+            try:
+                root = optimize.newton(aspect_residual, x0=self._major_radius)
+            except RuntimeError as exc:
+                raise RuntimeError(
+                    "Failed to enforce exact radii with 1D root solve for Delta(1,0)."
+                ) from exc
+
+            self.surface_garabedian.set_Delta(1, 0, root)
+
+            # Now scale all the Delta(m,n) parameters to match the desired minor radius.
+            scale = self._minor_radius / self.surface_garabedian.to_RZFourier().minor_radius()
+            print("Scaling all Delta(m,n) by factor", scale, " 1/scale=", 1/scale)
+            self.surface_garabedian.local_full_x = self.surface_garabedian.local_full_x * scale
+
+        self.surface_rz_fourier = self.surface_garabedian.to_RZFourier()
+
+    def to_RZFourier(self):
+        return self.surface_rz_fourier
