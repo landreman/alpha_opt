@@ -2,7 +2,7 @@ numpy
 scipy
 pandas
 matplotlib
-simsopt
+simsopt[ALGS]
 vmecpp
 nlopt
 scikit-learn

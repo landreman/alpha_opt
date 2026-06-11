@@ -195,8 +195,9 @@ def measure_usable_space(
         surface.x = x
         surface2 = surface.to_RZFourier()
         self_intersected_yet = False
-        for angle in np.linspace(0, np.pi / nfp, 5):
-            if surface2.is_self_intersecting(angle=angle):
+        # Check planes between phi=0 and the half-field-period plane:
+        for angle in np.linspace(0, 0.5 / nfp, 5):
+            if surface2.is_self_intersecting(angle=angle, thetas=64):
                 self_intersected_yet = True
                 break
 
