@@ -26,6 +26,7 @@ except ImportError:
 def measure_usable_space(
     surface_type="PCA",
     which_nfp="allNfp",
+    self_intersection=False,
     n_pca_components=20,
     mpol=3,
     vmec_input="finite beta",
@@ -58,6 +59,9 @@ def measure_usable_space(
         "PCA" uses weighted PCA with weighted quantile transform.
         "Garabedian" uses Garabedian basis with weighted quantile transform.
         "Garabedian01" uses the non-data-informed Garabedian parameterization.
+    self_intersection : bool
+        If False (default), run vmec++ to determine success vs failure.
+        If True, skip vmec++ and just check if the surface self-intersects.
     which_nfp : str
         Either "allNfp" or "nfpAtLeast3" to choose the training dataset.
     n_pca_components : int
@@ -187,32 +191,47 @@ def measure_usable_space(
         )
         n_dofs = len(surface.x)
 
-    # Set up VMEC
-    vmec = Vmec(vmec_input, verbose=False)
-    vmec.indata.nfp = nfp
+    def check_self_intersection(x):
+        surface.x = x
+        surface2 = surface.to_RZFourier()
+        self_intersected_yet = False
+        for angle in np.linspace(0, np.pi / nfp, 5):
+            if surface2.is_self_intersecting(angle=angle):
+                self_intersected_yet = True
+                break
 
-    # Set phiedge
-    avg_B_estimate = max_B_target / np.sqrt(2)
-    phiedge_estimate = np.pi * avg_B_estimate * minor_radius**2
-    phiedge_high = phiedge_estimate * 2
-    vmec.set("phiedge", phiedge_high)
+        return_val = 1e10 if self_intersected_yet else 0.0
+        return return_val
+    
+    if self_intersection:
+        wrapped_objective = check_self_intersection
+    else:
+        # Set up VMEC
+        vmec = Vmec(vmec_input, verbose=False)
+        vmec.indata.nfp = nfp
 
-    # Create a dummy objective function (we only care about VMEC convergence)
-    def dummy_objective():
-        return 0.0
+        # Set phiedge
+        avg_B_estimate = max_B_target / np.sqrt(2)
+        phiedge_estimate = np.pi * avg_B_estimate * minor_radius**2
+        phiedge_high = phiedge_estimate * 2
+        vmec.set("phiedge", phiedge_high)
 
-    # Create wrapped objective that handles max_B iteration
-    x_scale = np.ones(n_dofs)
-    wrapped_objective = get_objective(
-        vmec,
-        surface,
-        x_scale,
-        dummy_objective,
-        fail_val=1e10,
-        max_B=max_B_target,
-        max_B_iterations=max_B_iterations,
-        phiedge=phiedge_high,
-    )
+        # Create a dummy objective function (we only care about VMEC convergence)
+        def dummy_objective():
+            return 0.0
+
+        # Create wrapped objective that handles max_B iteration
+        x_scale = np.ones(n_dofs)
+        wrapped_objective = get_objective(
+            vmec,
+            surface,
+            x_scale,
+            dummy_objective,
+            fail_val=1e10,
+            max_B=max_B_target,
+            max_B_iterations=max_B_iterations,
+            phiedge=phiedge_high,
+        )
 
     n_trials = 0
     n_successes = 0
@@ -250,9 +269,12 @@ def measure_usable_space(
             # Check if VMEC converged (result will be fail_val if VMEC failed)
             if result < 1e9:
                 n_successes += 1
-                iota = abs(vmec.wout.iotaf[-1])
-                if iota > iota_threshold:
-                    n_good_iota += 1
+                if self_intersection:
+                    n_good_iota += 1  # Count all non-self-intersecting surfaces as "good iota"
+                else:
+                    iota = abs(vmec.wout.iotaf[-1])
+                    if iota > iota_threshold:
+                        n_good_iota += 1
         except Exception:
             # VMEC failed to converge or other exception
             pass

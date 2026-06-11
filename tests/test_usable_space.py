@@ -5,21 +5,30 @@ from alpha_opt.usable_space import measure_usable_space
 
 
 @pytest.mark.parametrize(
-    "surface_type,vmec_input,which_nfp",
+    "surface_type,vmec_input,which_nfp,self_intersection",
     [
-        ("Garabedian01", "vacuum", "allNfp"),
+        ("Garabedian01", "vacuum", "allNfp", True),
+        ("Garabedian01", "vacuum", "allNfp", False),
         # ("Garabedian01", "finite beta", "allNfp"),
-        ("Garabedian", "vacuum", "allNfp"),
-        ("Garabedian", "vacuum", "nfpAtLeast3"),
-        ("Garabedian", "finite beta", "allNfp"),
-        ("Garabedian", "finite beta", "nfpAtLeast3"),
-        ("PCA", "vacuum", "allNfp"),
-        ("PCA", "vacuum", "nfpAtLeast3"),
-        ("PCA", "finite beta", "allNfp"),
-        ("PCA", "finite beta", "nfpAtLeast3"),
+        ("Garabedian", "vacuum", "allNfp", True),
+        ("Garabedian", "vacuum", "allNfp", False),
+        ("Garabedian", "vacuum", "nfpAtLeast3", True),
+        ("Garabedian", "vacuum", "nfpAtLeast3", False),
+        ("Garabedian", "finite beta", "allNfp", True),
+        ("Garabedian", "finite beta", "allNfp", False),
+        ("Garabedian", "finite beta", "nfpAtLeast3", True),
+        ("Garabedian", "finite beta", "nfpAtLeast3", False),
+        ("PCA", "vacuum", "allNfp", True),
+        ("PCA", "vacuum", "allNfp", False),
+        ("PCA", "vacuum", "nfpAtLeast3", True),
+        ("PCA", "vacuum", "nfpAtLeast3", False),
+        ("PCA", "finite beta", "allNfp", True),
+        ("PCA", "finite beta", "allNfp", False),
+        ("PCA", "finite beta", "nfpAtLeast3", True),
+        ("PCA", "finite beta", "nfpAtLeast3", False),
     ],
 )
-def test_usable_space(surface_type, vmec_input, which_nfp):
+def test_usable_space(surface_type, vmec_input, which_nfp, self_intersection):
     print(f"Testing surface type: {surface_type}, VMEC input: {vmec_input}")
     n_trials, n_successes, n_good_iota, success_fraction, n_good_iota_fraction = (
         measure_usable_space(
@@ -27,6 +36,7 @@ def test_usable_space(surface_type, vmec_input, which_nfp):
             surface_type=surface_type,
             vmec_input=vmec_input,
             which_nfp=which_nfp,
+            self_intersection=self_intersection,
             min_for_each_dof=0.1,
             n_pca_components=1,
             mpol=1,
