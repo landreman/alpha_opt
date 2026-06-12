@@ -23,6 +23,79 @@ except ImportError:
     mpi_available = False
 
 
+def _build_surface(
+    surface_type,
+    which_nfp,
+    nfp,
+    aspect_ratio,
+    n_pca_components,
+    mpol,
+    x_max,
+    exponential_spectral_scaling,
+):
+    minor_radius = ARIES_CS_MINOR_RADIUS
+    major_radius = minor_radius * aspect_ratio
+
+    if surface_type not in ("PCA", "Garabedian", "Garabedian01"):
+        raise ValueError(
+            f"surface_type must be 'PCA' or 'Garabedian' or 'Garabedian01', got {surface_type}"
+        )
+    if which_nfp not in ("allNfp", "nfpAtLeast3"):
+        raise ValueError(f"which_nfp must be 'allNfp' or 'nfpAtLeast3', got {which_nfp}")
+
+    if surface_type == "PCA":
+        if which_nfp == "allNfp":
+            h5_filename = "20260401-01_prepare_weighted_data_allNfp_PCA.h5"
+        else:
+            h5_filename = "20260402-01_prepare_weighted_data_nfpAtLeast3_PCA.h5"
+    elif surface_type == "Garabedian":
+        if which_nfp == "allNfp":
+            h5_filename = "20260401-01_prepare_weighted_data_allNfp_Garabedian.h5"
+        else:
+            h5_filename = "20260402-01_prepare_weighted_data_nfpAtLeast3_Garabedian.h5"
+    else:
+        h5_filename = "."
+
+    h5_filepath = os.path.join(DATA_DIR, h5_filename)
+
+    if surface_type == "PCA":
+        surface = SurfaceWeightedPCA(
+            nfp,
+            major_radius,
+            minor_radius,
+            n_pca_components,
+            filename=h5_filepath,
+            exact_radii=True,
+        )
+        n_dofs = n_pca_components
+    elif surface_type == "Garabedian":
+        surface = SurfaceGarabedianQuantiles(
+            nfp=nfp,
+            major_radius=major_radius,
+            minor_radius=minor_radius,
+            mpol=mpol,
+            ntor=mpol,
+            filename=h5_filepath,
+            seed=rank,
+            exact_radii=True,
+        )
+        n_dofs = len(surface.x)
+    else:
+        surface = SurfaceGarabedian01(
+            nfp=nfp,
+            major_radius=major_radius,
+            minor_radius=minor_radius,
+            mpol=mpol,
+            ntor=mpol,
+            x_max=x_max,
+            exponential_spectral_scaling=exponential_spectral_scaling,
+            exact_radii=True,
+        )
+        n_dofs = len(surface.x)
+
+    return surface, n_dofs, minor_radius
+
+
 def measure_usable_space(
     surface_type="PCA",
     which_nfp="allNfp",
@@ -120,76 +193,24 @@ def measure_usable_space(
     good_iota_fraction : float
         Fraction of trials with good iota.
     """
-    minor_radius = ARIES_CS_MINOR_RADIUS
-    major_radius = minor_radius * aspect_ratio
-
-    # Validate inputs
-    if surface_type not in ("PCA", "Garabedian", "Garabedian01"):
-        raise ValueError(f"surface_type must be 'PCA' or 'Garabedian' or 'Garabedian01', got {surface_type}")
-    if which_nfp not in ("allNfp", "nfpAtLeast3"):
-        raise ValueError(f"which_nfp must be 'allNfp' or 'nfpAtLeast3', got {which_nfp}")
-
     # Set different random seed for each MPI process
     np.random.seed(rank)
 
-    start_time = time.time()
-
-    # Determine h5 file path based on surface_type and which_nfp
-    if surface_type == "PCA":
-        if which_nfp == "allNfp":
-            h5_filename = "20260401-01_prepare_weighted_data_allNfp_PCA.h5"
-        else:  # nfpAtLeast3
-            h5_filename = "20260402-01_prepare_weighted_data_nfpAtLeast3_PCA.h5"
-    elif surface_type == "Garabedian":
-        if which_nfp == "allNfp":
-            h5_filename = "20260401-01_prepare_weighted_data_allNfp_Garabedian.h5"
-        else:  # nfpAtLeast3
-            h5_filename = "20260402-01_prepare_weighted_data_nfpAtLeast3_Garabedian.h5"
-    else:
-        h5_filename = "."  # Garabedian01 does not use a data file
-
-    h5_filepath = os.path.join(DATA_DIR, h5_filename)
+    surface, n_dofs, minor_radius = _build_surface(
+        surface_type=surface_type,
+        which_nfp=which_nfp,
+        nfp=nfp,
+        aspect_ratio=aspect_ratio,
+        n_pca_components=n_pca_components,
+        mpol=mpol,
+        x_max=x_max,
+        exponential_spectral_scaling=exponential_spectral_scaling,
+    )
 
     if vmec_input == "vacuum":
         vmec_input = os.path.join(DATA_DIR, "input.vmec")
     elif vmec_input == "finite beta":
         vmec_input = os.path.join(DATA_DIR, "input.finite_beta")
-
-    # Create surface
-    if surface_type == "PCA":
-        surface = SurfaceWeightedPCA(
-            nfp,
-            major_radius,
-            minor_radius,
-            n_pca_components,
-            filename=h5_filepath,
-            exact_radii=True,
-        )
-        n_dofs = n_pca_components
-    elif surface_type == "Garabedian":
-        surface = SurfaceGarabedianQuantiles(
-            nfp=nfp,
-            major_radius=major_radius,
-            minor_radius=minor_radius,
-            mpol=mpol,
-            ntor=mpol,
-            filename=h5_filepath,
-            seed=rank,
-            exact_radii=True,
-        )
-        n_dofs = len(surface.x)
-    else:  # Garabedian01
-        surface = SurfaceGarabedian01(
-            nfp=nfp,
-            major_radius=major_radius,
-            minor_radius=minor_radius,
-            mpol=mpol,
-            ntor=mpol,
-            x_max=x_max,
-            exponential_spectral_scaling=exponential_spectral_scaling,
-            exact_radii=True,
-        )
-        n_dofs = len(surface.x)
 
     def check_self_intersection(x):
         surface.x = x
@@ -239,6 +260,7 @@ def measure_usable_space(
     n_good_iota = 0
 
     checkpoint_path = os.path.join(save_dir, f"usable_space_rank{rank:04d}.txt")
+    start_time = time.time()
     last_save_time = start_time
 
     def write_checkpoint():
@@ -329,3 +351,206 @@ def measure_usable_space(
         print("=" * line_width)
 
     return n_trials, n_successes, n_good_iota, success_ratio, good_iota_ratio
+
+def measure_diversity(
+    surface_type="PCA",
+    which_nfp="allNfp",
+    n_pca_components=20,
+    mpol=3,
+    nfp=4,
+    aspect_ratio=6,
+    min_for_each_dof=0.0,
+    x_max=1.0,
+    exponential_spectral_scaling=False,
+    minutes=0.3,
+    print_every=10,
+    save_intermediate=True,
+    save_interval_seconds=30,
+    save_dir=".",
+):
+    """Measure the fraction of parameter space in which vmec converges, using a
+    weighted PCA or Garabedian quantile surface with max_B iteration machinery.
+
+    Parameters sampled uniformly in [min_for_each_dof, 1 - min_for_each_dof].
+
+    If mpi4py is installed, this function will use MPI to run multiple
+    processes in parallel.
+
+    Parameters
+    ----------
+    surface_type : str
+        Either "PCA" or "Garabedian" or "Garabedian01" to choose the surface parameterization.
+        "PCA" uses weighted PCA with weighted quantile transform.
+        "Garabedian" uses Garabedian basis with weighted quantile transform.
+        "Garabedian01" uses the non-data-informed Garabedian parameterization.
+    self_intersection : bool
+        If False (default), run vmec++ to determine success vs failure.
+        If True, skip vmec++ and just check if the surface self-intersects.
+    which_nfp : str
+        Either "allNfp" or "nfpAtLeast3" to choose the training dataset.
+    n_pca_components : int
+        Number of principal components to use (only for PCA surface type).
+        Default is 20.
+    mpol : int
+        Poloidal mode number (ntor will be set equal to mpol for Garabedian 
+        surface type). Default is 3.
+    vmec_input : str
+        Either "vacuum" or "finite beta" to use bundled VMEC input files,
+        or a custom path to a VMEC input file. Default is "finite beta".
+    nfp : int
+        Number of field periods. Default is 4.
+    aspect_ratio : float
+        Aspect ratio of the surface. Default is 6.
+    min_for_each_dof : float
+        Minimum absolute value for each degree of freedom when sampling uniformly
+        from [min_for_each_dof, 1 - min_for_each_dof]. Default is 0.1.
+    x_max : float
+        Used only for Garabedian01. Maximum absolute Fourier amplitude, as a
+        fraction of the minor radius.
+    exponential_spectral_scaling : bool
+        Used only for Garabedian01. If True, apply exponential spectral scaling
+        to the Fourier coefficients.
+    minutes : float
+        Number of minutes to run the test. Default is 0.3.
+    iota_threshold : float
+        Threshold for considering iota to be "good". Default is 0.2.
+    print_every : int
+        Print status every this many trials. Default is 10.
+    save_intermediate : bool
+        If True, each MPI rank periodically writes a plaintext checkpoint file
+        with its running totals so results can be recovered if the job is killed.
+        Default is True.
+    save_interval_seconds : float
+        How often (in seconds) each rank writes its checkpoint file.
+        Default is 30.
+    save_dir : str
+        Directory in which to write checkpoint files. Default is "." (current
+        working directory).
+
+    Returns
+    -------
+    n_trials : int
+        Total number of trials performed.
+    n_successes : int
+        Total number of successful VMEC runs.
+    n_good_iota : int
+        Total number of successful VMEC runs with good iota.
+    success_fraction : float
+        Fraction of trials that were successful.
+    good_iota_fraction : float
+        Fraction of trials with good iota.
+    """
+    # Set different random seed for each MPI process
+    np.random.seed(rank)
+
+    surface, n_dofs, minor_radius = _build_surface(
+        surface_type=surface_type,
+        which_nfp=which_nfp,
+        nfp=nfp,
+        aspect_ratio=aspect_ratio,
+        n_pca_components=n_pca_components,
+        mpol=mpol,
+        x_max=x_max,
+        exponential_spectral_scaling=exponential_spectral_scaling,
+    )
+
+    n_trials = 0
+    sum_abs_distances = 0
+    sum_distances_squared = 0
+
+    checkpoint_path = os.path.join(save_dir, f"usable_space_rank{rank:04d}.txt")
+    start_time = time.time()
+    last_save_time = start_time
+
+    def write_checkpoint():
+        with open(checkpoint_path, "w") as _f:
+            _f.write(f"rank={rank}\n")
+            _f.write(f"n_trials={n_trials}\n")
+            _f.write(f"sum_abs_distances={sum_abs_distances}\n")
+            _f.write(f"sum_distances_squared={sum_distances_squared}\n")
+            _f.write(f"elapsed_seconds={time.time() - start_time:.1f}\n")
+
+    def print_status():
+        print(
+            f"[rank {rank:04d}] n_trials: {n_trials}  mean_abs_distances: {sum_abs_distances / n_trials}  mean_distances_squared: {sum_distances_squared / n_trials}"
+        )
+
+    def sample():
+        # Sample parameters uniformly from [min_for_each_dof, 1 - min_for_each_dof]
+        x = np.random.uniform(min_for_each_dof, 1.0 - min_for_each_dof, n_dofs)
+        surface.x = x
+        gamma = surface.to_RZFourier().gamma()
+        R = np.sqrt(gamma[:, :, 0] ** 2 + gamma[:, :, 1] ** 2) / minor_radius
+        Z = gamma[:, :, 2] / minor_radius
+        return R, Z
+
+    while True:
+        elapsed_minutes = (time.time() - start_time) / 60
+        if elapsed_minutes > minutes and n_trials > 0:
+            # If the PCA takes a long time, make sure to complete at least one trial before breaking, so that we have some data to return.
+            break
+
+        try:
+            R1, Z1 = sample()
+            R2, Z2 = sample()
+        except RuntimeError as e:
+            # If "Failed to enforce exact radii" is in the error message:
+            if "Failed to enforce exact radii" in str(e):
+                # Skip this sample and continue to the next one
+                continue
+            else:
+                # If it's a different error, re-raise it
+                raise
+
+        sum_abs_distances += np.mean(np.abs(R1 - R2) + np.abs(Z1 - Z2))
+        sum_distances_squared += np.mean((R1 - R2) ** 2 + (Z1 - Z2) ** 2)
+
+        n_trials += 1
+
+        if n_trials % print_every == 0:
+            print_status()
+
+        if save_intermediate:
+            now = time.time()
+            if now - last_save_time >= save_interval_seconds:
+                write_checkpoint()
+                last_save_time = now
+
+    print_status()
+    if save_intermediate:
+        write_checkpoint()
+
+    # Sum results across all MPI processes
+    line_width = 60
+    print("\n" + "=" * line_width)
+
+    if mpi_available:
+        # Use allreduce to compute sums and make them available on all ranks
+        n_trials = comm.allreduce(n_trials, op=MPI.SUM)
+        sum_abs_distances = comm.allreduce(sum_abs_distances, op=MPI.SUM)
+        sum_distances_squared = comm.allreduce(sum_distances_squared, op=MPI.SUM)
+
+        if rank == 0:
+            print(f"FINAL SUMMARY (totals for {size} MPI processes)")
+    else:
+        print("FINAL SUMMARY (no MPI)")
+
+    mean_abs_distances = sum_abs_distances / n_trials if n_trials > 0 else 0
+    mean_distances_squared = sum_distances_squared / n_trials if n_trials > 0 else 0
+
+    if rank == 0:
+        print("=" * line_width)
+        print(f"Surface type: {surface_type}")
+        print(f"Dataset: {which_nfp}")
+        if surface_type == "PCA":
+            print(f"Number of PCA components: {n_pca_components}")
+        else:
+            print(f"Poloidal/toroidal modes: mpol=ntor={mpol}")
+        print(f"Total trials: {n_trials}")
+        print(f"Sum of absolute distances: {sum_abs_distances:.6f}")
+        print(f"Sum of distances squared: {sum_distances_squared:.6f}")
+        print(f"Mean absolute distances: {mean_abs_distances}")
+        print(f"Mean squared distances: {mean_distances_squared}")
+        print("=" * line_width)
+
+    return n_trials, sum_abs_distances, sum_distances_squared, mean_abs_distances, mean_distances_squared

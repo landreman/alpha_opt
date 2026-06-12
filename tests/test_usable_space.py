@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 import alpha_opt.usable_space as usable_space
-from alpha_opt.usable_space import measure_usable_space
+from alpha_opt.usable_space import measure_usable_space, measure_diversity
 
 
 @pytest.mark.parametrize(
@@ -220,3 +220,37 @@ def test_measure_usable_space_new_wires_objective_and_phiedge(monkeypatch):
 
     assert len(calls["vmec"]) == 1
     np.testing.assert_allclose(calls["vmec"][0]._settings["phiedge"], expected_phiedge)
+
+def test_diversity():
+    # If you run for longer time, the results shouldn't change much:
+    surface_type="Garabedian01"
+    x_max = 0.01
+    minutes1 = 0.03
+    mpol = 3
+    n_trials1, sum_abs_distances1, sum_distances_squared1, mean_abs_distances1, mean_distances_squared1 = measure_diversity(
+        surface_type=surface_type,
+        minutes=minutes1,
+        x_max=x_max,
+        mpol=mpol,
+    )
+    n_trials2, sum_abs_distances2, sum_distances_squared2, mean_abs_distances2, mean_distances_squared2 = measure_diversity(
+        surface_type=surface_type,
+        minutes=minutes1 * 2,
+        x_max=x_max,
+        mpol=mpol,
+    )
+    np.testing.assert_array_less(n_trials1, n_trials2)
+    np.testing.assert_array_less(sum_abs_distances1, sum_abs_distances2)
+    np.testing.assert_array_less(sum_distances_squared1, sum_distances_squared2)
+    np.testing.assert_allclose(mean_abs_distances1, mean_abs_distances2, rtol=0.02)
+    np.testing.assert_allclose(mean_distances_squared1, mean_distances_squared2, rtol=0.005)
+
+    # If you increase x_max, the distances should increase:
+    n_trials3, sum_abs_distances3, sum_distances_squared3, mean_abs_distances3, mean_distances_squared3 = measure_diversity(
+        surface_type=surface_type,
+        minutes=minutes1,
+        x_max=x_max * 10,
+        mpol=mpol,
+    )
+    np.testing.assert_array_less(mean_abs_distances1 * 8, mean_abs_distances3)
+    np.testing.assert_array_less(mean_distances_squared1 * 80, mean_distances_squared3)

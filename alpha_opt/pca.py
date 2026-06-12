@@ -327,7 +327,7 @@ class SurfaceWeightedPCA(Surface):
                 root = optimize.newton(aspect_residual, x0=self._major_radius)
             except RuntimeError as exc:
                 raise RuntimeError(
-                    "Failed to enforce exact radii with 1D root solve for Delta(1,0)."
+                    "Failed to enforce exact radii with 1D root solve for major radius."
                 ) from exc
 
             aspect_residual(root)  # Set the major radius to the final value from the root solve
