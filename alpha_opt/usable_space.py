@@ -76,7 +76,7 @@ def _build_surface(
             mpol=mpol,
             ntor=mpol,
             filename=h5_filepath,
-            seed=rank,
+            seed=rank + np.mod(time.time_ns() // 1000, 1000000),
             exact_radii=True,
         )
         n_dofs = len(surface.x)
@@ -441,7 +441,7 @@ def measure_diversity(
         Fraction of trials with good iota.
     """
     # Set different random seed for each MPI process
-    np.random.seed(rank)
+    np.random.seed(rank + np.mod(time.time_ns() // 1000, 1000000))
 
     surface, n_dofs, minor_radius = _build_surface(
         surface_type=surface_type,

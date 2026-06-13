@@ -243,7 +243,7 @@ def test_diversity():
     np.testing.assert_array_less(sum_abs_distances1, sum_abs_distances2)
     np.testing.assert_array_less(sum_distances_squared1, sum_distances_squared2)
     np.testing.assert_allclose(mean_abs_distances1, mean_abs_distances2, rtol=0.02)
-    np.testing.assert_allclose(mean_distances_squared1, mean_distances_squared2, rtol=0.005)
+    np.testing.assert_allclose(mean_distances_squared1, mean_distances_squared2, rtol=0.03)
 
     # If you increase x_max, the distances should increase:
     n_trials3, sum_abs_distances3, sum_distances_squared3, mean_abs_distances3, mean_distances_squared3 = measure_diversity(
