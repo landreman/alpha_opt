@@ -2,6 +2,7 @@ import os
 import time
 import numpy as np
 from vmecpp.simsopt_compat import Vmec
+from simsopt.util import in_github_actions
 
 from . import DATA_DIR
 from .pca import SurfaceWeightedPCA
@@ -69,6 +70,10 @@ def _build_surface(
         )
         n_dofs = n_pca_components
     elif surface_type == "Garabedian":
+        seed = rank
+        if not in_github_actions:
+            # If we're not in the CI, add some additional randomness to the seed based on the current time, so that different runs will explore different parts of parameter space. In GitHub Actions, we want to keep the seed fixed for reproducibility.
+            seed += np.mod(time.time_ns() // 1000, 1000000)
         surface = SurfaceGarabedianQuantiles(
             nfp=nfp,
             major_radius=major_radius,
@@ -76,7 +81,7 @@ def _build_surface(
             mpol=mpol,
             ntor=mpol,
             filename=h5_filepath,
-            seed=rank + np.mod(time.time_ns() // 1000, 1000000),
+            seed=seed,
             exact_radii=True,
         )
         n_dofs = len(surface.x)
@@ -479,7 +484,10 @@ def measure_diversity(
         # Sample parameters uniformly from [min_for_each_dof, 1 - min_for_each_dof]
         x = np.random.uniform(min_for_each_dof, 1.0 - min_for_each_dof, n_dofs)
         surface.x = x
-        gamma = surface.to_RZFourier().gamma()
+        surface2 = surface.to_RZFourier()
+        surface3 = surface2.copy(range="half period", ntheta=63, nphi=64)
+        # print("nfp:", surface3.nfp, "quadpoints_phi:", surface3.quadpoints_phi)
+        gamma = surface3.gamma()
         R = np.sqrt(gamma[:, :, 0] ** 2 + gamma[:, :, 1] ** 2) / minor_radius
         Z = gamma[:, :, 2] / minor_radius
         return R, Z

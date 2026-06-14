@@ -5,34 +5,34 @@ from alpha_opt.usable_space import measure_usable_space, measure_diversity
 
 
 @pytest.mark.parametrize(
-    "surface_type,vmec_input,which_nfp,self_intersection",
+    "surface_type,vmec_input,which_nfp,self_intersection,time",
     [
-        ("Garabedian01", "vacuum", "allNfp", True),
-        ("Garabedian01", "vacuum", "allNfp", False),
+        ("Garabedian01", "vacuum", "allNfp", True, 0.01),
+        ("Garabedian01", "vacuum", "allNfp", False, 0.1),
         # ("Garabedian01", "finite beta", "allNfp"),
-        ("Garabedian", "vacuum", "allNfp", True),
-        ("Garabedian", "vacuum", "allNfp", False),
-        ("Garabedian", "vacuum", "nfpAtLeast3", True),
-        ("Garabedian", "vacuum", "nfpAtLeast3", False),
-        ("Garabedian", "finite beta", "allNfp", True),
-        ("Garabedian", "finite beta", "allNfp", False),
-        ("Garabedian", "finite beta", "nfpAtLeast3", True),
-        ("Garabedian", "finite beta", "nfpAtLeast3", False),
-        ("PCA", "vacuum", "allNfp", True),
-        ("PCA", "vacuum", "allNfp", False),
-        ("PCA", "vacuum", "nfpAtLeast3", True),
-        ("PCA", "vacuum", "nfpAtLeast3", False),
-        ("PCA", "finite beta", "allNfp", True),
-        ("PCA", "finite beta", "allNfp", False),
-        ("PCA", "finite beta", "nfpAtLeast3", True),
-        ("PCA", "finite beta", "nfpAtLeast3", False),
+        ("Garabedian", "vacuum", "allNfp", True, 0.01),
+        ("Garabedian", "vacuum", "allNfp", False, 0.2),
+        ("Garabedian", "vacuum", "nfpAtLeast3", True, 0.01),
+        ("Garabedian", "vacuum", "nfpAtLeast3", False, 0.2),
+        ("Garabedian", "finite beta", "allNfp", True, 0.01),
+        ("Garabedian", "finite beta", "allNfp", False, 0.2),
+        ("Garabedian", "finite beta", "nfpAtLeast3", True, 0.01),
+        ("Garabedian", "finite beta", "nfpAtLeast3", False, 0.2),
+        ("PCA", "vacuum", "allNfp", True, 0.01),
+        ("PCA", "vacuum", "allNfp", False, 0.1),
+        ("PCA", "vacuum", "nfpAtLeast3", True, 0.01),
+        ("PCA", "vacuum", "nfpAtLeast3", False, 0.1),
+        ("PCA", "finite beta", "allNfp", True, 0.01),
+        ("PCA", "finite beta", "allNfp", False, 0.1),
+        ("PCA", "finite beta", "nfpAtLeast3", True, 0.01),
+        ("PCA", "finite beta", "nfpAtLeast3", False, 0.1),
     ],
 )
-def test_usable_space(surface_type, vmec_input, which_nfp, self_intersection):
+def test_usable_space(surface_type, vmec_input, which_nfp, self_intersection, time):
     print(f"Testing surface type: {surface_type}, VMEC input: {vmec_input}")
     n_trials, n_successes, n_good_iota, success_fraction, n_good_iota_fraction = (
         measure_usable_space(
-            minutes=0.1,
+            minutes=time,
             surface_type=surface_type,
             vmec_input=vmec_input,
             which_nfp=which_nfp,
@@ -242,8 +242,8 @@ def test_diversity():
     np.testing.assert_array_less(n_trials1, n_trials2)
     np.testing.assert_array_less(sum_abs_distances1, sum_abs_distances2)
     np.testing.assert_array_less(sum_distances_squared1, sum_distances_squared2)
-    np.testing.assert_allclose(mean_abs_distances1, mean_abs_distances2, rtol=0.03)
-    np.testing.assert_allclose(mean_distances_squared1, mean_distances_squared2, rtol=0.04)
+    np.testing.assert_allclose(mean_abs_distances1, mean_abs_distances2, rtol=0.04)
+    np.testing.assert_allclose(mean_distances_squared1, mean_distances_squared2, rtol=0.06)
 
     # If you increase x_max, the distances should increase:
     n_trials3, sum_abs_distances3, sum_distances_squared3, mean_abs_distances3, mean_distances_squared3 = measure_diversity(

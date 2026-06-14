@@ -58,9 +58,9 @@ jobs:
         cd tests
         pytest
 
-    - name: Run MPI test_usable_space
+    - name: Run tests involving MPI
       run: |
-        mpiexec --oversubscribe -n 2 pytest tests/test_usable_space.py::test_usable_space
+        mpiexec --oversubscribe -n 2 pytest tests/test_usable_space.py::test_usable_space tests/test_usable_space.py::test_diversity
 
     #- name: Run MPI tests
     #  run: ./run_tests_mpi
